@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Directory — Malé Mosque Directory</title>
+  <meta name="description" content="Browse, search, and filter mosques across the Maldives.">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <div id="navbar-root"></div>
+  <div class="modal-overlay" id="modal-overlay"><div class="modal-content"></div></div>
+
+  <div class="section" style="padding-top:5rem">
+    <div class="container">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:.5rem">
+        <h1 style="font-size:1.75rem; font-weight:700; margin-bottom:.35rem;">Mosque Directory</h1>
+        <button onclick="window.location.href='map.html'" class="btn btn-outline" style="display:flex; align-items:center; gap:.5rem">
+          <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>
+          View Map
+        </button>
+      </div>
+      <p id="dir-count" style="color:var(--gray-500); font-size:.9rem; margin-bottom:1.5rem;"></p>
+
+      <!-- Controls -->
+      <div class="dir-controls">
+        <div class="dir-controls-row">
+          <input type="text" id="dir-search" placeholder="Search by name...">
+          <select class="filter-select" id="dir-atoll"><option value="">All Atolls</option></select>
+          <select class="filter-select" id="dir-island"><option value="">All Islands</option></select>
+        </div>
+        <div class="dir-controls-bottom">
+          <div style="display:flex; align-items:center; gap:1rem; flex-wrap:wrap;">
+            <label class="filter-checkbox-label"><input type="checkbox" id="dir-friday"> Friday Prayer</label>
+            <label class="filter-checkbox-label"><input type="checkbox" id="dir-ladies"> Ladies Section</label>
+            <button class="clear-btn" onclick="clearDirFilters()">Clear all</button>
+          </div>
+          <div style="display:flex; align-items:center; gap:.75rem;">
+            <select class="filter-select" id="dir-sort">
+              <option value="name-asc">Name A-Z</option>
+              <option value="name-desc">Name Z-A</option>
+              <option value="island">Island</option>
+              <option value="atoll">Atoll</option>
+              <option value="cap-desc">Capacity ↓</option>
+              <option value="cap-asc">Capacity ↑</option>
+            </select>
+            <div class="view-toggle">
+              <button id="btn-grid" class="active" onclick="setView('grid')" title="Grid">
+                <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M3 3h8v8H3V3zm0 10h8v8H3v-8zm10-10h8v8h-8V3zm0 10h8v8h-8v-8z"/></svg>
+              </button>
+              <button id="btn-list" onclick="setView('list')" title="List">
+                <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M3 4h18v2H3V4zm0 7h18v2H3v-2zm0 7h18v2H3v-2z"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Active filters display -->
+      <div id="active-filters" style="display:flex; flex-wrap:wrap; gap:.5rem; margin:1rem 0 .5rem;"></div>
+
+      <!-- Content -->
+      <div id="dir-content" class="cards-grid"></div>
+    </div>
+  </div>
+
+  <!-- Toast notification -->
+  <div id="toast" class="toast" style="display:none"></div>
+
+  <script src="js/navbar.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    document.getElementById("navbar-root").innerHTML = getNavbarHTML("directory.html");
+    initNavbar();
+
+    var allMosques = [];
+    var currentView = "grid";
+    var content = document.getElementById("dir-content");
+    var highlightedMosqueId = null;
+    var dataLoaded = false;
+
+    renderSkeletons(content, 8);
+
+    // Check URL for mosque parameter FIRST
+    var urlParams = new URLSearchParams(window.location.search);
+    highlightedMosqueId = urlParams.get("mosque");
+
+    fetchAllMosques().then(function(mosques) {
+      allMosques = mosques;
+      dataLoaded = true;
+      populateSelect(document.getElementById("dir-atoll"), getAtolls(mosques), "All Atolls");
+      populateSelect(document.getElementById("dir-island"), getIslands(mosques), "All Islands");
+      
+      // Restore filters from localStorage
+      restoreFilters();
+      
+      renderDir();
+      
+      // After rendering, highlight the selected mosque
+      if (highlightedMosqueId) {
+        setTimeout(function() {
+          highlightMosqueCard(highlightedMosqueId);
+        }, 200);
+      }
+    }).catch(function(err) {
+      content.innerHTML = '<div class="error-state"><p>' + err.message + '</p><button class="btn btn-primary" onclick="location.reload()">Retry</button></div>';
+    });
+
+    // Save filters to localStorage
+    function saveFilters() {
+      var filters = {
+        search: document.getElementById("dir-search").value,
+        atoll: document.getElementById("dir-atoll").value,
+        island: document.getElementById("dir-island").value,
+        friday: document.getElementById("dir-friday").checked,
+        ladies: document.getElementById("dir-ladies").checked,
+        sort: document.getElementById("dir-sort").value,
+        view: currentView
+      };
+      localStorage.setItem("directory_filters", JSON.stringify(filters));
+    }
+
+    function restoreFilters() {
+      var saved = localStorage.getItem("directory_filters");
+      if (saved) {
+        try {
+          var filters = JSON.parse(saved);
+          document.getElementById("dir-search").value = filters.search || "";
+          document.getElementById("dir-friday").checked = filters.friday || false;
+          document.getElementById("dir-ladies").checked = filters.ladies || false;
+          if (filters.sort) document.getElementById("dir-sort").value = filters.sort;
+          if (filters.view) {
+            currentView = filters.view;
+            document.getElementById("btn-grid").classList.toggle("active", currentView === "grid");
+            document.getElementById("btn-list").classList.toggle("active", currentView === "list");
+          }
+          // Atoll and island will be set after population
+          setTimeout(function() {
+            if (filters.atoll) document.getElementById("dir-atoll").value = filters.atoll;
+            if (filters.island) document.getElementById("dir-island").value = filters.island;
+            renderDir();
+          }, 100);
+        } catch (e) {}
+      }
+    }
+
+    // Listeners with save
+    var debounce;
+    document.getElementById("dir-search").addEventListener("input", function() {
+      clearTimeout(debounce);
+      debounce = setTimeout(function() {
+        saveFilters();
+        renderDir();
+      }, 300);
+    });
+    
+    ["dir-atoll","dir-island","dir-friday","dir-ladies","dir-sort"].forEach(function(id) {
+      document.getElementById(id).addEventListener("change", function() {
+        saveFilters();
+        renderDir();
+      });
+    });
+
+    // Update island dropdown when atoll changes
+    document.getElementById("dir-atoll").addEventListener("change", function() {
+      var atoll = this.value;
+      var islandSelect = document.getElementById("dir-island");
+      var islands = atoll ? 
+        [...new Set(allMosques.filter(function(m) { return m.atoll === atoll; }).map(function(m) { return m.island; }))].sort() :
+        getIslands(allMosques);
+      populateSelect(islandSelect, islands, "All Islands");
+    });
+
+    function getFilteredSorted() {
+      var s = document.getElementById("dir-search").value.toLowerCase();
+      var atoll = document.getElementById("dir-atoll").value;
+      var island = document.getElementById("dir-island").value;
+      var fri = document.getElementById("dir-friday").checked;
+      var lad = document.getElementById("dir-ladies").checked;
+      var sort = document.getElementById("dir-sort").value;
+
+      var result = allMosques.filter(function(m) {
+        if (s && m.name.toLowerCase().indexOf(s) === -1) return false;
+        if (atoll && m.atoll !== atoll) return false;
+        if (island && m.island !== island) return false;
+        if (fri && !m.friday) return false;
+        if (lad && !m.ladies) return false;
+        return true;
+      });
+
+      result.sort(function(a, b) {
+        switch(sort) {
+          case "name-asc": return a.name.localeCompare(b.name);
+          case "name-desc": return b.name.localeCompare(a.name);
+          case "island": return a.island.localeCompare(b.island);
+          case "atoll": return a.atoll.localeCompare(b.atoll);
+          case "cap-desc": return (b.capacity||0) - (a.capacity||0);
+          case "cap-asc": return (a.capacity||0) - (b.capacity||0);
+          default: return 0;
+        }
+      });
+      return result;
+    }
+
+    function updateActiveFilters() {
+      var filters = [];
+      var s = document.getElementById("dir-search").value;
+      var atoll = document.getElementById("dir-atoll").value;
+      var island = document.getElementById("dir-island").value;
+      var fri = document.getElementById("dir-friday").checked;
+      var lad = document.getElementById("dir-ladies").checked;
+      
+      if (s) filters.push({ label: 'Search: ' + s, clear: function() { document.getElementById("dir-search").value = ""; renderDir(); } });
+      if (atoll) filters.push({ label: 'Atoll: ' + atoll, clear: function() { document.getElementById("dir-atoll").value = ""; renderDir(); } });
+      if (island) filters.push({ label: 'Island: ' + island, clear: function() { document.getElementById("dir-island").value = ""; renderDir(); } });
+      if (fri) filters.push({ label: 'Friday Prayer', clear: function() { document.getElementById("dir-friday").checked = false; renderDir(); } });
+      if (lad) filters.push({ label: 'Ladies Section', clear: function() { document.getElementById("dir-ladies").checked = false; renderDir(); } });
+      
+      var container = document.getElementById("active-filters");
+      container.innerHTML = filters.map(function(f) {
+        return '<span class="filter-chip">' + f.label + ' <button onclick="this.parentElement.remove(); arguments[0].stopPropagation();" style="margin-left:8px; border:none; background:none; cursor:pointer; font-size:14px;">✕</button></span>';
+      }).join('');
+      
+      // Reattach clear handlers
+      container.querySelectorAll('.filter-chip button').forEach(function(btn, i) {
+        btn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          filters[i].clear();
+          saveFilters();
+        });
+      });
+    }
+
+    function highlightMosqueCard(mosqueId) {
+      var mosque = allMosques.find(function(m) { return m.id === mosqueId; });
+      if (!mosque) return;
+      
+      var cards = document.querySelectorAll('.mosque-card, .list-item');
+      var found = false;
+      
+      cards.forEach(function(card) {
+        var titleEl = card.querySelector('h3');
+        if (titleEl && titleEl.textContent === mosque.name) {
+          card.classList.add('highlighted-card');
+          card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          found = true;
+          
+          // Show toast notification
+          showToast('📍 Viewing: ' + mosque.name);
+          
+          // Remove highlight after animation
+          setTimeout(function() {
+            card.classList.remove('highlighted-card');
+          }, 3000);
+        }
+      });
+      
+      if (!found) {
+        // If not found, it might be filtered out - clear filters and try again
+        clearDirFilters();
+        setTimeout(function() {
+          highlightMosqueCard(mosqueId);
+        }, 300);
+      }
+    }
+
+    function showToast(message) {
+      var toast = document.getElementById("toast");
+      toast.textContent = message;
+      toast.style.display = "block";
+      setTimeout(function() {
+        toast.style.display = "none";
+      }, 3000);
+    }
+
+    function renderDir() {
+      var filtered = getFilteredSorted();
+      document.getElementById("dir-count").textContent = filtered.length + " of " + allMosques.length + " mosques";
+      updateActiveFilters();
+      content.innerHTML = "";
+      content.className = currentView === "grid" ? "cards-grid" : "";
+
+      if (filtered.length === 0) {
+        content.innerHTML = '<div class="empty-state"><svg width="48" height="48" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg><p>No mosques found.</p><button class="btn btn-outline" onclick="clearDirFilters()">Clear filters</button></div>';
+        return;
+      }
+
+      if (currentView === "grid") {
+        filtered.forEach(function(m) { 
+          var card = renderMosqueCard(m);
+          // Add mosque ID as data attribute for highlighting
+          card.setAttribute('data-mosque-id', m.id);
+          content.appendChild(card);
+        });
+      } else {
+        filtered.forEach(function(m) {
+          var item = document.createElement("div");
+          item.className = "list-item";
+          item.setAttribute('data-mosque-id', m.id);
+          
+          var badges = "";
+          if (m.friday) badges += '<span class="badge badge-friday" style="font-size:.65rem">Friday</span>';
+          if (m.ladies) badges += '<span class="badge badge-ladies" style="font-size:.65rem">Ladies</span>';
+          
+          item.innerHTML =
+            '<div class="list-icon">🕌</div>' +
+            '<div class="list-info"><h3>' + m.name + '</h3><p>' + m.island + ', ' + m.atoll + '</p></div>' +
+            '<div class="list-badges">' + badges + (m.capacity > 0 ? '<span style="font-size:.7rem;color:var(--gray-500)">Cap: ' + m.capacity + '</span>' : '') + '</div>' +
+            '<div style="display:flex; gap:.25rem">' +
+              '<button class="list-action-btn" data-action="details" title="View Details">📋</button>' +
+              '<button class="list-action-btn" data-action="map" title="View on Map">🗺️</button>' +
+            '</div>';
+          
+          item.addEventListener("click", function(e) {
+            var target = e.target;
+            var action = target.getAttribute("data-action");
+            
+            if (action === "map") {
+              e.stopPropagation();
+              window.location.href = "map.html?lat=" + m.latitude + "&lng=" + m.longitude + "&id=" + m.id;
+            } else if (action === "details") {
+              e.stopPropagation();
+              openModal(m);
+            } else {
+              // Click on the item itself opens modal
+              openModal(m);
+            }
+          });
+          
+          content.appendChild(item);
+        });
+      }
+      
+      // Re-highlight if there's a selected mosque
+      if (highlightedMosqueId) {
+        highlightMosqueCard(highlightedMosqueId);
+        // Clear URL param after highlighting
+        var url = new URL(window.location);
+        url.searchParams.delete('mosque');
+        window.history.replaceState({}, '', url);
+        highlightedMosqueId = null;
+      }
+      
+      saveFilters();
+    }
+
+    window.setView = function(v) {
+      currentView = v;
+      document.getElementById("btn-grid").classList.toggle("active", v === "grid");
+      document.getElementById("btn-list").classList.toggle("active", v === "list");
+      saveFilters();
+      renderDir();
+    };
+
+    window.clearDirFilters = function() {
+      document.getElementById("dir-search").value = "";
+      document.getElementById("dir-atoll").value = "";
+      document.getElementById("dir-island").value = "";
+      document.getElementById("dir-friday").checked = false;
+      document.getElementById("dir-ladies").checked = false;
+      saveFilters();
+      renderDir();
+    };
+    
+    window.showToast = showToast;
+  </script>
+</body>
+</html>

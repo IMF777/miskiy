@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Map — Malé Mosque Directory</title>
+  <meta name="description" content="Interactive map of all mosques in the Maldives.">
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+</head>
+<body>
+  <div id="navbar-root"></div>
+  <div class="modal-overlay" id="modal-overlay"><div class="modal-content"></div></div>
+
+  <div class="map-page">
+    <!-- Loading -->
+    <div id="map-loading" class="loading-center" style="position:absolute;inset:0;z-index:500;background:rgba(250,250,247,.85)">
+      <div class="spinner"></div>
+      <p>Loading mosques...</p>
+    </div>
+
+    <!-- Search -->
+    <div class="map-search">
+      <input type="text" id="map-search-input" placeholder="Search mosques..." autocomplete="off">
+      <div class="map-suggestions" id="map-suggestions" style="display:none"></div>
+    </div>
+
+    <!-- Controls -->
+    <div class="map-controls">
+      <button class="map-ctrl-btn" id="btn-locate" title="My location">📍</button>
+      <button class="map-ctrl-btn" id="btn-reset" title="Reset view">🏠</button>
+    </div>
+
+    <!-- Panel -->
+    <div id="map-panel" style="display:none"></div>
+
+    <!-- Map -->
+    <div id="map" class="map-container"></div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="js/navbar.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    document.getElementById("navbar-root").innerHTML = getNavbarHTML("map.html");
+    initNavbar();
+
+    // Map init
+    var map = L.map("map", { zoomControl: false }).setView([4.1755, 73.5093], 13);
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
+      attribution: '&copy; OpenStreetMap'
+    }).addTo(map);
+
+    // Custom icon - regular
+    var mosqueIcon = L.icon({
+      iconUrl: "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 32" width="28" height="36"><defs><filter id="s" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="1" stdDeviation="1" flood-opacity="0.3"/></filter></defs><path d="M12 0C5.4 0 0 5.4 0 12c0 9 12 20 12 20s12-11 12-20C24 5.4 18.6 0 12 0z" fill="#1B5E20" filter="url(#s)"/><circle cx="12" cy="11" r="5" fill="white" opacity="0.9"/><text x="12" y="14" text-anchor="middle" font-size="8" fill="#1B5E20">🕌</text></svg>'),
+      iconSize: [28, 36],
+      iconAnchor: [14, 36],
+      popupAnchor: [0, -36]
+    });
+
+    // Custom icon - highlighted/selected
+    var mosqueIconHighlighted = L.icon({
+      iconUrl: "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 32" width="36" height="46"><defs><filter id="sh" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#FFB300" flood-opacity="0.6"/></filter></defs><path d="M12 0C5.4 0 0 5.4 0 12c0 9 12 20 12 20s12-11 12-20C24 5.4 18.6 0 12 0z" fill="#FFB300" filter="url(#sh)"/><circle cx="12" cy="11" r="5" fill="white" opacity="0.9"/><text x="12" y="14" text-anchor="middle" font-size="8" fill="#1B5E20">🕌</text></svg>'),
+      iconSize: [36, 46],
+      iconAnchor: [18, 46],
+      popupAnchor: [0, -46]
+    });
+
+    var allMosques = [];
+    var markers = [];
+    var currentHighlightedMarker = null;
+    var markerGroup = L.layerGroup().addTo(map);
+
+    fetchAllMosques().then(function(mosques) {
+      allMosques = mosques;
+      document.getElementById("map-loading").style.display = "none";
+
+      // Group mosques by exact location
+      var locationGroups = {};
+      mosques.forEach(function(m) {
+        if (!m.latitude || !m.longitude) return;
+        var key = m.latitude.toFixed(5) + ',' + m.longitude.toFixed(5);
+        if (!locationGroups[key]) locationGroups[key] = [];
+        locationGroups[key].push(m);
+      });
+
+      // Create markers with slight offsets for overlapping locations
+      Object.values(locationGroups).forEach(function(group) {
+        group.forEach(function(m, index) {
+          var lat = m.latitude;
+          var lng = m.longitude;
+          
+          // Slight spiral offset for markers at same location
+          if (group.length > 1) {
+            var offset = 0.0001 * (Math.floor(index / 8) + 1);
+            var angle = (index % 8) * (Math.PI / 4);
+            lat = m.latitude + Math.cos(angle) * offset;
+            lng = m.longitude + Math.sin(angle) * offset;
+          }
+          
+          var marker = L.marker([lat, lng], { icon: mosqueIcon });
+          
+          marker.mosqueData = m;
+          marker.popupContent = "<strong>" + m.name + "</strong><br><small>" + m.island + ", " + m.atoll + "</small>" +
+            '<br><div style="margin-top:8px;display:flex;gap:4px;flex-wrap:wrap">' +
+              '<button class="popup-btn popup-view-btn" data-action="details" data-id="' + m.id + '">Details</button>' +
+              '<button class="popup-btn popup-dir-btn" data-action="directory" data-id="' + m.id + '">Directory</button>' +
+              '<button class="popup-btn popup-map-btn" data-action="directions" data-lat="' + m.latitude + '" data-lng="' + m.longitude + '">Directions</button>' +
+            '</div>';
+          
+          marker.bindPopup(marker.popupContent);
+          
+          marker.on('popupopen', function() {
+            var popup = this.getPopup();
+            var content = popup.getContent();
+            var el = popup.getElement();
+            
+            setTimeout(function() {
+              var btns = el.querySelectorAll('.popup-btn');
+              btns.forEach(function(btn) {
+                btn.addEventListener('click', function(e) {
+                  e.stopPropagation();
+                  var action = this.dataset.action;
+                  var id = this.dataset.id;
+                  var lat = this.dataset.lat;
+                  var lng = this.dataset.lng;
+                  
+                  if (action === 'details') {
+                    var mosque = allMosques.find(function(m) { return m.id === id; });
+                    if (mosque) openModal(mosque);
+                  } else if (action === 'directory') {
+                    window.location.href = "directory.html?mosque=" + id;
+                  } else if (action === 'directions') {
+                    window.open("https://www.google.com/maps/dir/?api=1&destination=" + lat + "," + lng, "_blank");
+                  }
+                });
+              });
+            }, 50);
+          });
+          
+          marker.on('click', function() {
+            highlightMarker(this);
+            showPanel(this.mosqueData);
+          });
+          
+          markers.push(marker);
+          marker.addTo(markerGroup);
+        });
+      });
+
+      // Check URL params for pre-selected mosque
+      var params = new URLSearchParams(window.location.search);
+      var lat = params.get("lat");
+      var lng = params.get("lng");
+      var id = params.get("id");
+      
+      if (lat && lng) {
+        map.flyTo([parseFloat(lat), parseFloat(lng)], 17, { duration: 1.5 });
+        if (id) {
+          setTimeout(function() {
+            var foundMarker = markers.find(function(m) { 
+              return m.mosqueData && m.mosqueData.id === id; 
+            });
+            if (foundMarker) {
+              highlightMarker(foundMarker);
+              showPanel(foundMarker.mosqueData);
+              foundMarker.openPopup();
+            }
+          }, 1600);
+        }
+      }
+    }).catch(function(err) {
+      document.getElementById("map-loading").innerHTML = '<div class="error-state"><p>' + err.message + '</p><button class="btn btn-primary" onclick="location.reload()">Retry</button></div>';
+    });
+
+    function highlightMarker(marker) {
+      if (currentHighlightedMarker) {
+        currentHighlightedMarker.setIcon(mosqueIcon);
+      }
+      if (marker) {
+        marker.setIcon(mosqueIconHighlighted);
+        currentHighlightedMarker = marker;
+      }
+    }
+
+    window.highlightAndViewMosque = function(mosqueId) {
+      var marker = markers.find(function(m) { 
+        return m.mosqueData && m.mosqueData.id === mosqueId; 
+      });
+      
+      if (marker) {
+        var mosque = marker.mosqueData;
+        map.flyTo([mosque.latitude, mosque.longitude], 17, { duration: 1.5 });
+        setTimeout(function() {
+          highlightMarker(marker);
+          showPanel(mosque);
+          marker.openPopup();
+        }, 1600);
+      }
+    };
+
+    window.viewMosqueDetails = function(mosqueId) {
+      var mosque = allMosques.find(function(m) { return m.id === mosqueId; });
+      if (mosque) openModal(mosque);
+    };
+
+    // Search
+    var searchInput = document.getElementById("map-search-input");
+    var suggestionsEl = document.getElementById("map-suggestions");
+    var searchDebounce;
+
+    searchInput.addEventListener("input", function() {
+      clearTimeout(searchDebounce);
+      searchDebounce = setTimeout(function() {
+        var q = searchInput.value.toLowerCase().trim();
+        if (!q) { 
+          suggestionsEl.style.display = "none"; 
+          return; 
+        }
+        
+        var results = allMosques.filter(function(m) { 
+          return m.name.toLowerCase().indexOf(q) !== -1 ||
+                 (m.island && m.island.toLowerCase().indexOf(q) !== -1) ||
+                 (m.atoll && m.atoll.toLowerCase().indexOf(q) !== -1) ||
+                 (m.dhivehi && m.dhivehi.name && m.dhivehi.name.indexOf(q) !== -1);
+        }).slice(0, 8);
+        
+        if (results.length === 0) { 
+          suggestionsEl.innerHTML = '<div class="map-suggestion" style="cursor:default;opacity:0.7">No mosques found</div>';
+          suggestionsEl.style.display = ""; 
+          return; 
+        }
+        
+        suggestionsEl.innerHTML = "";
+        results.forEach(function(m) {
+          var btn = document.createElement("button");
+          btn.className = "map-suggestion";
+          btn.innerHTML = "<h4>" + m.name + "</h4><p>" + m.island + ", " + m.atoll + "</p>";
+          btn.addEventListener("click", function() {
+            var marker = markers.find(function(mk) { 
+              return mk.mosqueData && mk.mosqueData.id === m.id; 
+            });
+            
+            if (marker) {
+              map.flyTo([m.latitude, m.longitude], 17, { duration: 1.5 });
+              setTimeout(function() {
+                highlightMarker(marker);
+                showPanel(m);
+                marker.openPopup();
+              }, 1600);
+            } else {
+              map.flyTo([m.latitude, m.longitude], 17, { duration: 1.5 });
+              showPanel(m);
+            }
+            
+            searchInput.value = "";
+            suggestionsEl.style.display = "none";
+          });
+          suggestionsEl.appendChild(btn);
+        });
+        suggestionsEl.style.display = "";
+      }, 300);
+    });
+
+    function showPanel(m) {
+      var panel = document.getElementById("map-panel");
+      var badges = "";
+      if (m.friday) badges += '<span class="badge badge-friday" style="font-size:.7rem">Friday</span>';
+      if (m.ladies) badges += '<span class="badge badge-ladies" style="font-size:.7rem">Ladies</span>';
+      if (m.capacity > 0) badges += '<span style="font-size:.7rem;color:var(--gray-500)">👥 ' + m.capacity + '</span>';
+
+      panel.className = "map-panel";
+      panel.style.display = "";
+      panel.innerHTML =
+        '<div class="map-panel-inner">' +
+          '<div class="map-panel-header">' +
+            '<div><h3 style="font-weight:700">' + m.name + '</h3><p style="font-size:.75rem;color:var(--gray-500)">' + m.island + ', ' + m.atoll + '</p></div>' +
+            '<button class="map-panel-close" onclick="closePanel()">✕</button>' +
+          '</div>' +
+          '<div style="display:flex;gap:.35rem;margin-bottom:.75rem;flex-wrap:wrap">' + badges + '</div>' +
+          '<div style="display:flex;gap:.5rem;flex-wrap:wrap">' +
+            '<button class="btn btn-primary" onclick=\'openModal(' + JSON.stringify(m).replace(/'/g, "\\'") + ')\'>Full Details</button>' +
+            '<button class="btn btn-outline" onclick="window.location.href=\'directory.html?mosque=' + m.id + '\'">View in Directory</button>' +
+            '<a href="https://www.google.com/maps/dir/?api=1&destination=' + m.latitude + ',' + m.longitude + '" target="_blank" rel="noopener" class="btn btn-outline">Directions</a>' +
+          '</div>' +
+        '</div>';
+    }
+
+    window.closePanel = function() {
+      document.getElementById("map-panel").style.display = "none";
+    };
+
+    document.getElementById("btn-locate").addEventListener("click", function() {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          function(pos) { 
+            map.flyTo([pos.coords.latitude, pos.coords.longitude], 16, { duration: 1.5 });
+          },
+          function() { 
+            alert("Could not get your location"); 
+          }
+        );
+      }
+    });
+    
+    document.getElementById("btn-reset").addEventListener("click", function() {
+      map.flyTo([4.1755, 73.5093], 13, { duration: 1.5 });
+      closePanel();
+      if (currentHighlightedMarker) {
+        currentHighlightedMarker.setIcon(mosqueIcon);
+        currentHighlightedMarker = null;
+      }
+    });
+
+    document.addEventListener("click", function(e) {
+      if (!e.target.closest(".map-search")) {
+        suggestionsEl.style.display = "none";
+      }
+    });
+
+    window.highlightMarker = highlightMarker;
+    window.showPanel = showPanel;
+  </script>
+</body>
+</html>

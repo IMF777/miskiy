@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>API Documentation — Malé Mosque Directory</title>
+  <meta name="description" content="REST API documentation for the Malé Mosque Directory.">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <div id="navbar-root"></div>
+
+  <div class="section" style="padding-top:5rem">
+    <div class="container" style="max-width:800px">
+      <h1 style="font-size:1.75rem; font-weight:700; margin-bottom:.35rem;">API Documentation</h1>
+      <p style="color:var(--gray-500); font-size:.9rem; margin-bottom:2rem;">Access mosque data programmatically using our REST API.</p>
+
+      <!-- Base URL -->
+      <div class="api-base api-section">
+        <div>
+          <h2 style="font-size:.85rem; font-weight:600; margin-bottom:.25rem;">Base URL</h2>
+          <code id="base-url">http://localhost:3000</code>
+        </div>
+        <button class="copy-btn" onclick="copyText(document.getElementById('base-url').textContent)">Copy</button>
+      </div>
+
+      <!-- GET /api/all -->
+      <div class="api-endpoint api-section">
+        <div class="api-endpoint-header">
+          <div><span class="api-method">GET</span><code>/api/all</code></div>
+          <p>Returns all mosques as a JSON array</p>
+        </div>
+        <div class="api-code">
+          <div class="api-code-header"><h3>Example Request</h3><button class="copy-btn" onclick="copyText(this.closest('.api-code').querySelector('pre').textContent)">Copy</button></div>
+          <pre class="api-pre">fetch("http://localhost:3000/api/all")
+  .then(res => res.json())
+  .then(data => console.log(data));</pre>
+        </div>
+        <div class="api-code">
+          <div class="api-code-header"><h3>Example Response</h3><button class="copy-btn" onclick="copyText(this.closest('.api-code').querySelector('pre').textContent)">Copy</button></div>
+          <pre class="api-pre">[
+  {
+    "id": "unique_id",
+    "name": "Masjid Al-Sultan",
+    "island": "Malé",
+    "atoll": "Kaafu",
+    "friday": true,
+    "ladies": true,
+    "capacity": 500,
+    "latitude": 4.1755,
+    "longitude": 73.5093
+  }
+]</pre>
+        </div>
+      </div>
+
+      <!-- GET /api/mosque -->
+      <div class="api-endpoint api-section">
+        <div class="api-endpoint-header">
+          <div><span class="api-method">GET</span><code>/api/mosque?name={search}</code></div>
+          <p>Search mosques by name (case-insensitive, partial match)</p>
+        </div>
+        <div class="api-params">
+          <h3>Parameters</h3>
+          <table class="api-table">
+            <thead><tr><th>Name</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+            <tbody><tr><td><code>name</code></td><td>string</td><td style="color:#d32f2f">Yes</td><td>Search query for mosque name</td></tr></tbody>
+          </table>
+        </div>
+        <div class="api-code">
+          <div class="api-code-header"><h3>Example Request</h3><button class="copy-btn" onclick="copyText(this.closest('.api-code').querySelector('pre').textContent)">Copy</button></div>
+          <pre class="api-pre">fetch("http://localhost:3000/api/mosque?name=sultan")
+  .then(res => res.json())
+  .then(data => console.log(data));</pre>
+        </div>
+      </div>
+
+      <!-- GET /api/filter -->
+      <div class="api-endpoint api-section">
+        <div class="api-endpoint-header">
+          <div><span class="api-method">GET</span><code>/api/filter?{params}</code></div>
+          <p>Filter mosques with multiple conditions</p>
+        </div>
+        <div class="api-params">
+          <h3>Parameters</h3>
+          <table class="api-table">
+            <thead><tr><th>Name</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>atoll</code></td><td>string</td><td>No</td><td>Filter by atoll name</td></tr>
+              <tr><td><code>island</code></td><td>string</td><td>No</td><td>Filter by island name</td></tr>
+              <tr><td><code>friday</code></td><td>boolean</td><td>No</td><td>Friday prayer availability</td></tr>
+              <tr><td><code>ladies</code></td><td>boolean</td><td>No</td><td>Ladies' section availability</td></tr>
+              <tr><td><code>capacity_gt</code></td><td>number</td><td>No</td><td>Capacity greater than value</td></tr>
+              <tr><td><code>capacity_lt</code></td><td>number</td><td>No</td><td>Capacity less than value</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="api-code">
+          <div class="api-code-header"><h3>Example Request</h3><button class="copy-btn" onclick="copyText(this.closest('.api-code').querySelector('pre').textContent)">Copy</button></div>
+          <pre class="api-pre">fetch("http://localhost:3000/api/filter?atoll=Kaafu&friday=true")
+  .then(res => res.json())
+  .then(data => console.log(data));</pre>
+        </div>
+      </div>
+
+      <!-- Mosque Object -->
+      <div class="api-endpoint api-section">
+        <div class="api-endpoint-header">
+          <div><h2 style="font-size:1rem;font-weight:700">Mosque Object Structure</h2></div>
+        </div>
+        <div class="api-code">
+          <div class="api-code-header"><h3>Schema</h3><button class="copy-btn" onclick="copyText(this.closest('.api-code').querySelector('pre').textContent)">Copy</button></div>
+          <pre class="api-pre">{
+  "id": "string",
+  "name": "string",
+  "island": "string",
+  "atoll": "string",
+  "dhivehi": {
+    "name": "string (Dhivehi script)",
+    "island": "string",
+    "atoll": "string"
+  },
+  "friday": boolean,
+  "ladies": boolean,
+  "capacity": number,
+  "latitude": number,
+  "longitude": number,
+  "buildDate": "string (ISO date)",
+  "picture": "string (URL)",
+  "description": "string",
+  "contact": "string"
+}</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/navbar.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    document.getElementById("navbar-root").innerHTML = getNavbarHTML("api-docs.html");
+    initNavbar();
+
+    function copyText(text) {
+      navigator.clipboard.writeText(text).then(function() {
+        // Brief feedback
+        var btns = document.querySelectorAll(".copy-btn");
+        // Simple alert for now
+      });
+      alert("Copied to clipboard!");
+    }
+  </script>
+</body>
+</html>

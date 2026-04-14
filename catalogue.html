@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Catalogue — Malé Mosque Directory</title>
+  <meta name="description" content="Browse mosques organized by atoll.">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <div id="navbar-root"></div>
+  <div class="modal-overlay" id="modal-overlay"><div class="modal-content"></div></div>
+
+  <div class="section" style="padding-top:5rem">
+    <div class="container">
+      <h1 style="font-size:1.75rem; font-weight:700; margin-bottom:.35rem;">Catalogue</h1>
+      <p style="color:var(--gray-500); font-size:.9rem; margin-bottom:2rem;">Browse mosques organized by atoll.</p>
+
+      <div id="cat-loading" class="loading-center"><div class="spinner"></div><p>Loading...</p></div>
+
+      <div class="catalogue-layout" id="cat-layout" style="display:none">
+        <div class="catalogue-sidebar">
+          <!-- Mobile -->
+          <div class="catalogue-sidebar-mobile">
+            <select class="filter-select" id="cat-mobile-select" style="width:100%;margin-bottom:1rem">
+              <option value="">Select an Atoll</option>
+            </select>
+          </div>
+          <!-- Desktop -->
+          <div class="catalogue-sidebar-desktop">
+            <div class="sidebar-list">
+              <div class="sidebar-header">Atolls</div>
+              <div class="sidebar-scroll" id="cat-sidebar"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="catalogue-content" id="cat-content">
+          <div class="catalogue-empty">
+            <div class="icon">🏝️</div>
+            <h3>Select an Atoll</h3>
+            <p>Choose an atoll from the sidebar to view its mosques.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/navbar.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    document.getElementById("navbar-root").innerHTML = getNavbarHTML("catalogue.html");
+    initNavbar();
+
+    var mosquesByAtoll = {};
+    var selectedAtoll = "";
+
+    fetchAllMosques().then(function(mosques) {
+      mosques.forEach(function(m) {
+        if (!mosquesByAtoll[m.atoll]) mosquesByAtoll[m.atoll] = [];
+        mosquesByAtoll[m.atoll].push(m);
+      });
+
+      var atolls = Object.keys(mosquesByAtoll).sort();
+      document.getElementById("cat-loading").style.display = "none";
+      document.getElementById("cat-layout").style.display = "";
+
+      // Sidebar
+      var sidebar = document.getElementById("cat-sidebar");
+      var mobileSelect = document.getElementById("cat-mobile-select");
+
+      atolls.forEach(function(a) {
+        // Desktop
+        var btn = document.createElement("button");
+        btn.className = "sidebar-item";
+        btn.innerHTML = '<span class="left">📁 ' + a + '</span><span class="sidebar-count">' + mosquesByAtoll[a].length + '</span>';
+        btn.addEventListener("click", function() { selectAtoll(a); });
+        sidebar.appendChild(btn);
+
+        // Mobile
+        var opt = document.createElement("option");
+        opt.value = a;
+        opt.textContent = a + " (" + mosquesByAtoll[a].length + ")";
+        mobileSelect.appendChild(opt);
+      });
+
+      mobileSelect.addEventListener("change", function() {
+        if (this.value) selectAtoll(this.value);
+      });
+    }).catch(function(err) {
+      document.getElementById("cat-loading").innerHTML = '<div class="error-state"><p>' + err.message + '</p><button class="btn btn-primary" onclick="location.reload()">Retry</button></div>';
+    });
+
+    function selectAtoll(atoll) {
+      selectedAtoll = atoll;
+
+      // Update sidebar active
+      document.querySelectorAll(".sidebar-item").forEach(function(btn) {
+        btn.classList.toggle("active", btn.textContent.indexOf(atoll) !== -1);
+      });
+      document.getElementById("cat-mobile-select").value = atoll;
+
+      // Render content
+      var content = document.getElementById("cat-content");
+      var mosques = mosquesByAtoll[atoll] || [];
+      var html = '<div style="margin-bottom:1rem"><h2 style="font-size:1.2rem;font-weight:700">' + atoll + ' Atoll</h2>' +
+        '<p style="font-size:.85rem;color:var(--gray-500)">' + mosques.length + ' mosques</p></div>';
+
+      mosques.forEach(function(m) {
+        var badges = "";
+        if (m.friday) badges += '<span class="badge badge-friday" style="font-size:.65rem">Friday</span>';
+        if (m.ladies) badges += '<span class="badge badge-ladies" style="font-size:.65rem">Ladies</span>';
+        html += '<div class="list-item" data-id="' + m.id + '">' +
+          '<div class="list-icon">🕌</div>' +
+          '<div class="list-info"><h3>' + m.name + '</h3><p>' + m.island + '</p></div>' +
+          '<div class="list-badges">' + badges + '</div>' +
+        '</div>';
+      });
+
+      content.innerHTML = html;
+
+      // Add click handlers
+      content.querySelectorAll(".list-item").forEach(function(item) {
+        item.addEventListener("click", function() {
+          var id = this.getAttribute("data-id");
+          var mosque = mosques.find(function(m) { return m.id === id; });
+          if (mosque) openModal(mosque);
+        });
+      });
+    }
+  </script>
+</body>
+</html>

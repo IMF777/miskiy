@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Malé Mosque Directory — Discover Mosques in the Maldives</title>
+  <meta name="description" content="Explore the complete directory of mosques across all atolls and islands of the Maldives.">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body class="islamic-pattern">
+
+  <!-- Navbar placeholder -->
+  <div id="navbar-root"></div>
+
+  <!-- Modal -->
+  <div class="modal-overlay" id="modal-overlay">
+    <div class="modal-content"></div>
+  </div>
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="container animate-fade-in-up">
+      <h1>Discover Mosques in the <span class="accent">Maldives</span></h1>
+      <p>Explore the complete directory of mosques across all atolls and islands of the Maldives</p>
+
+      <!-- Search -->
+      <div class="search-wrap">
+        <span class="search-icon">🔍</span>
+        <input type="text" class="search-input" id="hero-search" placeholder="Search mosques by name..." autocomplete="off">
+        <button class="filter-toggle" id="filter-toggle" aria-label="Toggle filters">⚙️</button>
+      </div>
+
+      <!-- Filters -->
+      <div class="filters-panel" id="filters-panel">
+        <div class="filters-inner">
+          <div class="filters-grid">
+            <select class="filter-select" id="filter-atoll"><option value="">All Atolls</option></select>
+            <select class="filter-select" id="filter-island"><option value="">All Islands</option></select>
+            <label class="filter-checkbox-label"><input type="checkbox" id="filter-friday"> Friday Prayer</label>
+            <label class="filter-checkbox-label"><input type="checkbox" id="filter-ladies"> Ladies Section</label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Stats -->
+      <div class="stats-row" id="stats-row" style="display:none">
+        <div class="stat"><div class="stat-value" id="stat-mosques">0</div><div class="stat-label">Mosques</div></div>
+        <div class="stat"><div class="stat-value" id="stat-atolls">0</div><div class="stat-label">Atolls</div></div>
+        <div class="stat"><div class="stat-value" id="stat-islands">0</div><div class="stat-label">Islands</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Quick Links + Carousel -->
+  <section class="section section-muted">
+    <div class="container">
+      <div style="display:grid; grid-template-columns:1fr; gap:2rem;">
+        <style>@media(min-width:768px){#home-split{grid-template-columns:1fr 1fr !important}}</style>
+        <div id="home-split" style="display:grid; grid-template-columns:1fr; gap:2rem;">
+          <div class="quick-grid">
+            <a href="directory.html" class="quick-card"><div class="icon">📋</div><h3>Browse Directory</h3><p>View all mosques</p></a>
+            <a href="map.html" class="quick-card"><div class="icon">🗺️</div><h3>Interactive Map</h3><p>Explore on map</p></a>
+            <a href="catalogue.html" class="quick-card"><div class="icon">🏝️</div><h3>By Atoll</h3><p>Browse by region</p></a>
+            <a href="api-docs.html" class="quick-card"><div class="icon">⚡</div><h3>API Docs</h3><p>Developer access</p></a>
+          </div>
+
+          <div class="carousel-box" id="carousel">
+            <div class="carousel-slide active"><div class="slide-icon">🕌</div><h3>Discover Mosques</h3><p>Explore the beautiful mosques across the Maldives archipelago</p></div>
+            <div class="carousel-slide"><div class="slide-icon">🤲</div><h3>Prayer Times</h3><p>Find mosques with Friday prayers and ladies' sections</p></div>
+            <div class="carousel-slide"><div class="slide-icon">🗺️</div><h3>Navigate Easily</h3><p>Get directions to any mosque with our interactive map</p></div>
+            <div class="carousel-slide"><div class="slide-icon">📖</div><h3>Rich Directory</h3><p>Browse detailed information about each mosque</p></div>
+            <div class="carousel-dots" id="carousel-dots"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Results -->
+  <section class="section">
+    <div class="container">
+      <div class="section-header">
+        <h2 id="results-title">All Mosques</h2>
+        <button class="clear-btn" id="clear-filters" style="display:none" onclick="clearFilters()">Clear filters</button>
+      </div>
+      <div class="cards-grid" id="results-grid"></div>
+      <div id="view-all-wrap" style="text-align:center; margin-top:2rem; display:none;">
+        <a href="directory.html" class="btn btn-primary btn-lg" id="view-all-btn">View All Mosques</a>
+      </div>
+    </div>
+  </section>
+
+  <script src="js/navbar.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    // Insert navbar
+    document.getElementById("navbar-root").innerHTML = getNavbarHTML("index.html");
+    initNavbar();
+
+    // Carousel
+    (function() {
+      var slides = document.querySelectorAll(".carousel-slide");
+      var dotsContainer = document.getElementById("carousel-dots");
+      var current = 0;
+      for (var i = 0; i < slides.length; i++) {
+        var dot = document.createElement("button");
+        dot.className = "carousel-dot" + (i === 0 ? " active" : "");
+        dot.setAttribute("data-index", i);
+        dot.addEventListener("click", function() {
+          goTo(parseInt(this.getAttribute("data-index")));
+        });
+        dotsContainer.appendChild(dot);
+      }
+      function goTo(idx) {
+        slides[current].classList.remove("active");
+        dotsContainer.children[current].classList.remove("active");
+        current = idx;
+        slides[current].classList.add("active");
+        dotsContainer.children[current].classList.add("active");
+      }
+      setInterval(function() { goTo((current + 1) % slides.length); }, 4000);
+    })();
+
+    // Data
+    var allMosques = [];
+    var grid = document.getElementById("results-grid");
+
+    renderSkeletons(grid, 8);
+
+    fetchAllMosques().then(function(mosques) {
+      allMosques = mosques;
+      var atolls = getAtolls(mosques);
+      var islands = getIslands(mosques);
+
+      // Stats
+      document.getElementById("stat-mosques").textContent = mosques.length;
+      document.getElementById("stat-atolls").textContent = atolls.length;
+      document.getElementById("stat-islands").textContent = islands.length;
+      document.getElementById("stats-row").style.display = "flex";
+
+      // Populate filters
+      populateSelect(document.getElementById("filter-atoll"), atolls, "All Atolls");
+      populateSelect(document.getElementById("filter-island"), islands, "All Islands");
+
+      renderResults();
+    }).catch(function(err) {
+      grid.innerHTML = '<div class="error-state"><p>' + err.message + '</p><button class="btn btn-primary" onclick="location.reload()">Retry</button></div>';
+    });
+
+    // Filter logic
+    var searchInput = document.getElementById("hero-search");
+    var filterAtoll = document.getElementById("filter-atoll");
+    var filterIsland = document.getElementById("filter-island");
+    var filterFriday = document.getElementById("filter-friday");
+    var filterLadies = document.getElementById("filter-ladies");
+
+    document.getElementById("filter-toggle").addEventListener("click", function() {
+      document.getElementById("filters-panel").classList.toggle("open");
+    });
+    searchInput.addEventListener("focus", function() {
+      document.getElementById("filters-panel").classList.add("open");
+    });
+
+    var debounceTimer;
+    searchInput.addEventListener("input", function() {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(renderResults, 300);
+    });
+    filterAtoll.addEventListener("change", renderResults);
+    filterIsland.addEventListener("change", renderResults);
+    filterFriday.addEventListener("change", renderResults);
+    filterLadies.addEventListener("change", renderResults);
+
+    function getFiltered() {
+      var search = searchInput.value.toLowerCase();
+      var atoll = filterAtoll.value;
+      var island = filterIsland.value;
+      var friday = filterFriday.checked;
+      var ladies = filterLadies.checked;
+
+      return allMosques.filter(function(m) {
+        if (search && m.name.toLowerCase().indexOf(search) === -1) return false;
+        if (atoll && m.atoll !== atoll) return false;
+        if (island && m.island !== island) return false;
+        if (friday && !m.friday) return false;
+        if (ladies && !m.ladies) return false;
+        return true;
+      });
+    }
+
+    function hasActiveFilters() {
+      return searchInput.value || filterAtoll.value || filterIsland.value || filterFriday.checked || filterLadies.checked;
+    }
+
+    function renderResults() {
+      var filtered = getFiltered();
+      var hasFilters = hasActiveFilters();
+
+      document.getElementById("results-title").textContent = hasFilters ? filtered.length + " Results" : "All Mosques";
+      document.getElementById("clear-filters").style.display = hasFilters ? "" : "none";
+
+      grid.innerHTML = "";
+      if (filtered.length === 0) {
+        grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1">No mosques found matching your criteria.</div>';
+        document.getElementById("view-all-wrap").style.display = "none";
+        return;
+      }
+
+      var show = filtered.slice(0, 20);
+      show.forEach(function(m) { grid.appendChild(renderMosqueCard(m)); });
+
+      if (filtered.length > 20) {
+        document.getElementById("view-all-wrap").style.display = "";
+        document.getElementById("view-all-btn").textContent = "View All " + filtered.length + " Mosques";
+      } else {
+        document.getElementById("view-all-wrap").style.display = "none";
+      }
+    }
+
+    function clearFilters() {
+      searchInput.value = "";
+      filterAtoll.value = "";
+      filterIsland.value = "";
+      filterFriday.checked = false;
+      filterLadies.checked = false;
+      renderResults();
+    }
+  </script>
+</body>
+</html>
