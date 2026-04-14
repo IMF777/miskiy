@@ -130,7 +130,7 @@ input, select, textarea { font-family: inherit; }
 
 /* ---------- Hero ---------- */
 .hero {
-  padding: 7rem 1rem 4rem;
+  padding: 7rem 1rem 1rem;
   text-align:center;
   background: linear-gradient(180deg, rgba(27,94,32,.04) 0%, transparent 100%);
 }
@@ -176,7 +176,7 @@ input, select, textarea { font-family: inherit; }
 .filter-checkbox-label input { accent-color:var(--green-900); }
 
 /* ---------- Stats Row ---------- */
-.stats-row { display:flex; justify-content:center; gap:3rem; margin-top:2rem; }
+.stats-row { display:flex; justify-content:center; gap:3rem; margin-bottom:2rem; }
 .stat { text-align:center; }
 .stat-value { font-size:1.75rem; font-weight:800; color:var(--green-900); }
 .stat-label { font-size:.75rem; color:var(--gray-500); }
