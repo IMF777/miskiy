@@ -24,35 +24,6 @@ function getIslands(mosques) {
   return [...new Set(mosques.map(m => m.island))].sort();
 }
 
-// -------- Navbar --------
-function initNavbar() {
-  const navbar = document.getElementById("navbar");
-  const hamburger = document.getElementById("hamburger");
-  const mobileMenu = document.getElementById("mobile-menu");
-  if (!navbar) return;
-
-  // Scroll effect
-  window.addEventListener("scroll", function () {
-    navbar.classList.toggle("scrolled", window.scrollY > 20);
-  }, { passive: true });
-
-  // Hamburger toggle
-  if (hamburger && mobileMenu) {
-    hamburger.addEventListener("click", function () {
-      mobileMenu.classList.toggle("open");
-    });
-  }
-
-  // Active link
-  const currentPage = window.location.pathname.split("/").pop() || "index.html";
-  document.querySelectorAll(".nav-link").forEach(function (link) {
-    const href = link.getAttribute("href");
-    if (href === currentPage || (currentPage === "" && href === "index.html")) {
-      link.classList.add("active");
-    }
-  });
-}
-
 // -------- Modal --------
 function openModal(mosque) {
   const overlay = document.getElementById("modal-overlay");
@@ -174,7 +145,6 @@ function populateSelect(selectEl, options, placeholder) {
 
 // -------- Init on DOM ready --------
 document.addEventListener("DOMContentLoaded", function () {
-  initNavbar();
 
   // Close modal on overlay click
   var overlay = document.getElementById("modal-overlay");
