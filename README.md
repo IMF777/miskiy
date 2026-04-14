@@ -12,7 +12,6 @@
 
 **A beautiful, responsive frontend for the official Islamic Ministry of Maldives Mosque Directory**
 
-[Live Demo](https://yourusername.github.io/male-mosque-directory) • [Backend Repository](https://github.com/yourusername/male-mosque-directory-backend) • [API Documentation](https://your-api.fly.dev/api)
 
 </div>
 
